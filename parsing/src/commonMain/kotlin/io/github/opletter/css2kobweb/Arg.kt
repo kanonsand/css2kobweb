@@ -179,14 +179,23 @@ fun Arg.asCodeBlocks(
             val indents = "\t".repeat(indentLevel)
             add(CodeBlock(name, functionType))
             if (args.isNotEmpty() || lambdaStatements.isEmpty()) {
-                val longArgs = args.toString().length > 100 // number chosen arbitrarily
+                // Check if all args are named and their names match the function name (for lambda statements)
+                val isLambdaStyle = lambdaStatements.isNotEmpty() && args.all { it is Arg.NamedArg && it.name == name }
+                val usePositionalArgs = isLambdaStyle
+
+                val longArgs = args.toString().length > 100 || usePositionalArgs // number chosen arbitrarily
                 val separator = if (longArgs) ",\n\t$indents" else ", "
                 val start = if (longArgs) "(\n\t$indents" else "("
                 val end = if (longArgs) "\n$indents)" else ")"
 
                 add(CodeBlock(start, CodeElement.Plain))
                 args.forEachIndexed { index, arg ->
-                    addAll(arg.asCodeBlocks(indentLevel + if (longArgs) 1 else 0))
+                    if (usePositionalArgs && arg is Arg.NamedArg) {
+                        // Use positional args for lambda statements (e.g., `width(1.px)` instead of `width(width = 1.px)`)
+                        addAll(arg.value.asCodeBlocks(indentLevel + if (longArgs) 1 else 0))
+                    } else {
+                        addAll(arg.asCodeBlocks(indentLevel + if (longArgs) 1 else 0))
+                    }
                     if (index < args.size - 1)
                         add(CodeBlock(separator, CodeElement.Plain))
                 }

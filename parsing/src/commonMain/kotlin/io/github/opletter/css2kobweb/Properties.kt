@@ -127,6 +127,39 @@ internal fun parseCssProperty(propertyName: String, value: String): ParsedProper
         return ParsedProperty(propertyName, Arg.Property("WhiteSpace", "NoWrap"))
     }
 
+    // Handle border properties with named parameters
+    if (propertyName.startsWith("border") && value !in GlobalValues && value != "none") {
+        val parts = value.splitNotInParens(' ').filter { it.isNotBlank() }
+        var width: Arg? = null
+        var style: Arg? = null
+        var color: Arg? = null
+
+        // Parse parts from left to right
+        for (part in parts) {
+            when {
+                width == null && Arg.UnitNum.ofOrNull(part) != null -> {
+                    width = Arg.UnitNum.of(part)
+                }
+                style == null && color == null && Arg.asColorOrNull(part) == null && Arg.UnitNum.ofOrNull(part) == null -> {
+                    // If it's not a color or unit, it's likely a style
+                    style = Arg.Property.fromKebabValue("LineStyle", part)
+                }
+                color == null && Arg.asColorOrNull(part) != null -> {
+                    color = Arg.asColorOrNull(part)
+                }
+            }
+        }
+
+        // Build named arguments
+        val args = buildList {
+            if (width != null) add(Arg.NamedArg("width", width))
+            if (style != null) add(Arg.NamedArg("style", style))
+            if (color != null) add(Arg.NamedArg("color", color))
+        }
+
+        return ParsedProperty(propertyName, args)
+    }
+
     // Handle box-shadow with named parameters
     // Note: Multiple shadows (comma-separated) are not fully supported due to Kobweb's API limitations
     // Only the first shadow will be converted. For multiple shadows, users should manually add additional boxShadow calls.
