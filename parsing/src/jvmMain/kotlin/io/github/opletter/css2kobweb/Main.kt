@@ -1,9 +1,49 @@
 package io.github.opletter.css2kobweb
 
+import com.fleeksoft.ksoup.Ksoup
+import com.fleeksoft.ksoup.nodes.Document
+import java.io.File
 
-fun main() {
-    println(css2kobwebAsCode(rawCss3).joinToString(""))
-//    println(css2kobweb(rawCSS2))
+fun main(args: Array<String>) {
+    if (args.size != 2) {
+        println("Usage: <inputFile> <outputFile>")
+        println("Example: java -jar css2kobweb.jar input.html output.kt")
+        System.exit(1)
+    }
+
+    val inputFile = File(args[0])
+    val outputFile = File(args[1])
+
+    if (!inputFile.exists()) {
+        println("Error: Input file '${args[0]}' does not exist.")
+        System.exit(1)
+    }
+
+    try {
+        val htmlContent = inputFile.readText()
+        val document: Document = Ksoup.parse(htmlContent)
+
+        val styleTags = document.select("style")
+        if (styleTags.isEmpty()) {
+            println("Error: No <style> tag found in the HTML file.")
+            System.exit(1)
+        }
+
+        if (styleTags.size > 1) {
+            println("Warning: Multiple <style> tags found. Only the first one will be processed.")
+        }
+
+        val cssContent = styleTags.first()!!.html()
+        val convertedCode = css2kobwebAsCode(cssContent).joinToString("")
+
+        outputFile.writeText(convertedCode)
+        println("Successfully converted CSS from '${args[0]}' to '${args[1]}'")
+
+    } catch (e: Exception) {
+        println("Error: ${e.message}")
+        e.printStackTrace()
+        System.exit(1)
+    }
 }
 
 val rawCSS = """

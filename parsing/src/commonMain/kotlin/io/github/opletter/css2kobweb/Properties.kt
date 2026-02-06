@@ -127,6 +127,58 @@ internal fun parseCssProperty(propertyName: String, value: String): ParsedProper
         return ParsedProperty(propertyName, Arg.Property("WhiteSpace", "NoWrap"))
     }
 
+    // Handle box-shadow with named parameters
+    // Note: Multiple shadows (comma-separated) are not fully supported due to Kobweb's API limitations
+    // Only the first shadow will be converted. For multiple shadows, users should manually add additional boxShadow calls.
+    if (propertyName == "boxShadow" && value !in GlobalValues && value != "none") {
+        val shadow = value.splitNotInParens(',').first() // Take only the first shadow
+        val parts = shadow.splitNotInParens(' ').filter { it.isNotBlank() }
+        var color: Arg? = null
+        var offsetX: Arg? = null
+        var offsetY: Arg? = null
+        var blurRadius: Arg? = null
+        var spreadRadius: Arg? = null
+        var inset = false
+
+        // Parse parts from left to right
+        var i = 0
+        while (i < parts.size) {
+            val part = parts[i]
+            when {
+                part == "inset" -> inset = true
+                color == null && Arg.asColorOrNull(part) != null -> color = Arg.asColorOrNull(part)
+                offsetX == null && Arg.UnitNum.ofOrNull(part) != null -> {
+                    offsetX = Arg.UnitNum.of(part)
+                    if (i + 1 < parts.size && Arg.UnitNum.ofOrNull(parts[i + 1]) != null) {
+                        offsetY = Arg.UnitNum.of(parts[i + 1])
+                        i++
+                    }
+                }
+                offsetX != null && offsetY != null && blurRadius == null && Arg.UnitNum.ofOrNull(part) != null -> {
+                    blurRadius = Arg.UnitNum.of(part)
+                }
+                blurRadius != null && spreadRadius == null && Arg.UnitNum.ofOrNull(part) != null -> {
+                    spreadRadius = Arg.UnitNum.of(part)
+                }
+                // Color can appear at any position in CSS
+                color == null && Arg.asColorOrNull(part) != null -> color = Arg.asColorOrNull(part)
+            }
+            i++
+        }
+
+        // Build named arguments
+        val args = buildList {
+            if (color != null) add(Arg.NamedArg("color", color))
+            if (offsetX != null) add(Arg.NamedArg("offsetX", offsetX))
+            if (offsetY != null) add(Arg.NamedArg("offsetY", offsetY))
+            if (blurRadius != null) add(Arg.NamedArg("blurRadius", blurRadius))
+            if (spreadRadius != null) add(Arg.NamedArg("spreadRadius", spreadRadius))
+            if (inset) add(Arg.NamedArg("inset", Arg.Property(null, "true")))
+        }
+
+        return ParsedProperty(propertyName, args)
+    }
+
     return value.splitNotBetween(setOf('(' to ')'), setOf(' ', ',', '/')).map { prop ->
         if (prop in GlobalValues) {
             return@map Arg.Property.fromKebabValue(classNamesFromProperty(propertyName), prop)
